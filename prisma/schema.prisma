@@ -1,0 +1,492 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  OWNER
+  ADMIN
+}
+
+enum RestaurantStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_APPROVAL
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum PhotoType {
+  COVER
+  GALLERY
+  MENU
+  AMBIENCE
+  FOOD
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  passwordHash  String
+  phone         String?
+  avatarUrl     String?
+  role          Role      @default(USER)
+  isActive      Boolean   @default(true)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  reviews         Review[]
+  favorites       Favorite[]
+  photos          RestaurantPhoto[]
+  ownerClaims     OwnerClaim[]        @relation("ClaimantUser")
+  reviewedClaims  OwnerClaim[]        @relation("ClaimReviewer")
+  restaurantRoles RestaurantOwner[]
+  auditLogs       AuditLog[]
+  reports         Report[]            @relation("ReporterUser")
+  resolvedReports Report[]            @relation("ReportResolver")
+  views           RestaurantView[]
+  searchEvents    SearchEvent[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model City {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  state     String
+  country   String   @default("India")
+  latitude  Float
+  longitude Float
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  areas       Area[]
+  restaurants RestaurantLocation[]
+
+  @@index([slug])
+  @@index([name])
+}
+
+model Area {
+  id         String   @id @default(uuid())
+  cityId     String
+  city       City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  name       String
+  slug       String
+  postalCode String?
+  latitude   Float
+  longitude  Float
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  restaurants RestaurantLocation[]
+
+  @@unique([cityId, slug])
+  @@index([slug])
+  @@index([cityId])
+}
+
+model Cuisine {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  icon        String?
+  imageUrl    String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  restaurants RestaurantCuisine[]
+
+  @@index([slug])
+}
+
+model Restaurant {
+  id                 String             @id @default(uuid())
+  name               String
+  slug               String             @unique
+  description        String?
+  phone              String?
+  email              String?
+  website            String?
+  priceRange         Int                @default(2) // 1: Budget, 2: Moderate, 3: Upscale, 4: Fine Dining
+  averageRating      Float              @default(0.0)
+  reviewCount        Int                @default(0)
+  status             RestaurantStatus   @default(PENDING_APPROVAL)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  dataProvenance     String             @default("MANUAL_ONBOARDING")
+  bannerImageUrl     String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
+
+  // Relations
+  location      RestaurantLocation?
+  cuisines      RestaurantCuisine[]
+  menuCategories MenuCategory[]
+  photos        RestaurantPhoto[]
+  reviews       Review[]
+  favorites     Favorite[]
+  owners        RestaurantOwner[]
+  claims        OwnerClaim[]
+  subscription  Subscription?
+  openingHours  OpeningHour[]
+  specialHours  SpecialHour[]
+  views         RestaurantView[]
+  menuItems     MenuItem[]
+
+  @@index([slug])
+  @@index([name])
+  @@index([status])
+  @@index([verificationStatus])
+  @@index([averageRating(sort: Desc)])
+  @@index([priceRange])
+}
+
+model RestaurantLocation {
+  id           String   @id @default(uuid())
+  restaurantId String   @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  latitude     Float
+  longitude    Float
+  address      String
+  landmark     String?
+  cityId       String?
+  city         City?    @relation(fields: [cityId], references: [id])
+  cityName     String
+  areaId       String?
+  area         Area?    @relation(fields: [areaId], references: [id])
+  areaName     String
+  state        String
+  country      String   @default("India")
+  postalCode   String
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([cityId])
+  @@index([areaId])
+  @@index([cityName])
+  @@index([areaName])
+  @@index([latitude, longitude])
+}
+
+model RestaurantCuisine {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  cuisineId    String
+  cuisine      Cuisine    @relation(fields: [cuisineId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, cuisineId])
+  @@index([restaurantId])
+  @@index([cuisineId])
+}
+
+model RestaurantOwner {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isPrimary    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  @@unique([restaurantId, userId])
+  @@index([restaurantId])
+  @@index([userId])
+}
+
+model MenuCategory {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  displayOrder Int        @default(0)
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  items MenuItem[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, displayOrder])
+}
+
+model MenuItem {
+  id              String       @id @default(uuid())
+  restaurantId    String
+  restaurant      Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryId      String
+  category        MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name            String
+  slug            String
+  description     String?
+  price           Float
+  discountedPrice Float?
+  veg             Boolean      @default(false)
+  egg             Boolean      @default(false)
+  spicy           Boolean      @default(false)
+  available       Boolean      @default(true)
+  image           String?
+  displayOrder    Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([restaurantId])
+  @@index([categoryId])
+  @@index([name])
+  @@index([veg])
+  @@index([price])
+}
+
+model RestaurantPhoto {
+  id               String           @id @default(uuid())
+  restaurantId     String
+  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  url              String
+  thumbnailUrl     String?
+  type             PhotoType        @default(GALLERY)
+  moderationStatus ModerationStatus @default(APPROVED)
+  caption          String?
+  createdAt        DateTime         @default(now())
+
+  @@index([restaurantId])
+  @@index([moderationStatus])
+  @@index([type])
+}
+
+model Review {
+  id               String           @id @default(uuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId     String
+  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  rating           Int // 1 to 5
+  title            String?
+  body             String
+  moderationStatus ModerationStatus @default(APPROVED)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  photos ReviewPhoto[]
+
+  @@index([restaurantId])
+  @@index([userId])
+  @@index([rating])
+  @@index([moderationStatus])
+  @@index([createdAt(sort: Desc)])
+}
+
+model ReviewPhoto {
+  id       String @id @default(uuid())
+  reviewId String
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  url      String
+
+  @@index([reviewId])
+}
+
+model Favorite {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, restaurantId])
+  @@index([userId])
+  @@index([restaurantId])
+}
+
+model OwnerClaim {
+  id                  String      @id @default(uuid())
+  userId              String
+  user                User        @relation("ClaimantUser", fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId        String
+  restaurant          Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  verificationDocsUrl String?
+  businessPhone       String?
+  ownerName           String?
+  status              ClaimStatus @default(PENDING)
+  notes               String?
+  reviewedById        String?
+  reviewedBy          User?       @relation("ClaimReviewer", fields: [reviewedById], references: [id])
+  reviewedAt          DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([restaurantId])
+  @@index([status])
+}
+
+model Subscription {
+  id           String             @id @default(uuid())
+  restaurantId String             @unique
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tier         SubscriptionTier   @default(FREE)
+  status       SubscriptionStatus @default(ACTIVE)
+  currentStart DateTime           @default(now())
+  currentEnd   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([tier])
+  @@index([status])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String
+  oldData    String?  // JSON string
+  newData    String?  // JSON string
+  ipAddress  String?
+  timestamp  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([timestamp(sort: Desc)])
+}
+
+model OpeningHour {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dayOfWeek    Int        // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  openTime     String     // e.g. "11:00"
+  closeTime    String     // e.g. "23:00"
+  isClosed     Boolean    @default(false)
+
+  @@unique([restaurantId, dayOfWeek])
+  @@index([restaurantId])
+}
+
+model SpecialHour {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date         DateTime
+  openTime     String?
+  closeTime    String?
+  isClosed     Boolean    @default(false)
+  reason       String?
+
+  @@index([restaurantId, date])
+}
+
+model Report {
+  id          String       @id @default(uuid())
+  reporterId  String?
+  reporter    User?        @relation("ReporterUser", fields: [reporterId], references: [id], onDelete: SetNull)
+  entityType  String       // RESTAURANT, REVIEW, PHOTO, MENU_ITEM
+  entityId    String
+  reason      String
+  details     String?
+  status      ReportStatus @default(PENDING)
+  resolvedById String?
+  resolvedBy  User?        @relation("ReportResolver", fields: [resolvedById], references: [id])
+  resolvedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([entityType, entityId])
+  @@index([status])
+}
+
+model SearchEvent {
+  id           String   @id @default(uuid())
+  query        String
+  location     String?
+  category     String?
+  resultsCount Int      @default(0)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([query])
+  @@index([createdAt])
+}
+
+model RestaurantView {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress    String?
+  referrer     String?
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId])
+  @@index([createdAt])
+}
+
+model DishSearch {
+  id        String   @id @default(uuid())
+  query     String
+  city      String?
+  createdAt DateTime @default(now())
+
+  @@index([query])
+  @@index([city])
+}

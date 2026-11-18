@@ -1,0 +1,6 @@
+name,address,city,area,phone,website,latitude,longitude,price_range,cuisines
+"Minerva Coffee House","Himayatnagar Main Road","Hyderabad","Himayatnagar","+914023220444","https://minervacoffee.com",17.3995,78.4842,2,"south-indian,cafe"
+"Dadu's Sweets & Mithai","Road No 36 Jubilee Hills","Hyderabad","Jubilee Hills","+914023600555","https://dadus.co.in",17.4320,78.4065,2,"street-food,bakery-desserts"
+"Koshy's Parade Cafe","St. Marks Road","Bengaluru","Indiranagar","+918022213793","https://koshys.in",12.9733,77.6012,2,"continental,cafe"
+"Gopalas Pure Vegetarian","Juhu Tara Road","Mumbai","Juhu","+912226183344","https://gopalas.in",19.1022,72.8270,2,"north-indian,street-food"
+"Leopold Cafe & Bar","Colaba Causeway","Mumbai","Colaba","+912222828246","https://leopoldcafe.com",18.9228,72.8318,3,"continental,cafe"
